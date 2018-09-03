@@ -1,73 +1,23 @@
-language: go
-go_import_path: github.com/coreos/etcd
-
 sudo: required
-
-services: docker
+language: go
+notifications:
+  email: false
 
 go:
-- 1.10.3
-
-notifications:
-  on_success: never
-  on_failure: never
-
-env:
-  matrix:
-  - TARGET=linux-amd64-integration
-  - TARGET=linux-amd64-functional
-  - TARGET=linux-amd64-unit
-  - TARGET=all-build
-  - TARGET=linux-386-unit
-
-matrix:
-  fast_finish: true
-  allow_failures:
-  - go: 1.10.3
-    env: TARGET=linux-386-unit
-  exclude:
-  - go: tip
-    env: TARGET=linux-386-unit
-
-before_install:
-- if [[ $TRAVIS_GO_VERSION == 1.* ]]; then docker pull gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION}; fi
-
-install:
-- pushd cmd/etcd && go get -t -v ./... && popd
+- 1.10.x
 
 script:
- - echo "TRAVIS_GO_VERSION=${TRAVIS_GO_VERSION}"
- - >
-    case "${TARGET}" in
-      linux-amd64-integration)
-        docker run --rm \
-          --volume=`pwd`:/go/src/github.com/coreos/etcd gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION} \
-          /bin/bash -c "GOARCH=amd64 PASSES='integration' ./test"
-        ;;
-      linux-amd64-functional)
-        docker run --rm \
-          --volume=`pwd`:/go/src/github.com/coreos/etcd gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION} \
-          /bin/bash -c "./build && GOARCH=amd64 PASSES='functional' ./test"
-        ;;
-      linux-amd64-unit)
-        docker run --rm \
-          --volume=`pwd`:/go/src/github.com/coreos/etcd gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION} \
-          /bin/bash -c "GOARCH=amd64 PASSES='unit' ./test"
-        ;;
-      all-build)
-        docker run --rm \
-          --volume=`pwd`:/go/src/github.com/coreos/etcd gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION} \
-          /bin/bash -c "GOARCH=amd64 PASSES='build' ./test \
-            && GOARCH=386 PASSES='build' ./test \
-            && GO_BUILD_FLAGS='-v' GOOS=darwin GOARCH=amd64 ./build \
-            && GO_BUILD_FLAGS='-v' GOOS=windows GOARCH=amd64 ./build \
-            && GO_BUILD_FLAGS='-v' GOARCH=arm ./build \
-            && GO_BUILD_FLAGS='-v' GOARCH=arm64 ./build \
-            && GO_BUILD_FLAGS='-v' GOARCH=ppc64le ./build"
-        ;;
-      linux-386-unit)
-        docker run --rm \
-          --volume=`pwd`:/go/src/github.com/coreos/etcd gcr.io/etcd-development/etcd-test:go${TRAVIS_GO_VERSION} \
-          /bin/bash -c "GOARCH=386 PASSES='unit' ./test"
-        ;;
-    esac
+- dpkg-buildpackage -us -uc -b
+
+install:
+- sudo apt update && sudo apt install -yq golang-go binutils dpkg-dev build-essential fakeroot debhelper
+
+deploy:
+  provider: releases
+  api_key:
+    secure: 0NTDlyB2M6FScistFIY/uK2ueFYRtVelbuCoj1JPDIbNNwykh6xk1sFOSHi9rtfUtjwb7jH+HxjsRWyiUMJQoh7/EQHYHvdMeiNsWDW+kzGE6bKRUH+d9Z399HgusAD/SvfgDAJ4GrACswI1DF6wC1QlqFG03cjII0nUG7IQOaLmENP7oGWZeFWHtRy8cS716Tp8hQ2AT8o4Jr9oP3ekDaED3ipIICQV/jDTxPoD3HBqUgI4LJ7+Z6ByPgQsTlZGi6QpxZkFcwOKXJHqo/BQkxsGMHRreyHLUoDE4HaoKoa3cVfv0RLyyuDdDjVCZBDSvPADvPeawX+FjNWzmXDVKQ1lDBa/9alMQ79lWc6tViRUHz4szSb/KujjUVSoiQLfMw6qg1dItsJHHJ1Nke5Rx2k9NSb90iVsPUDcEosZoT5kLi97kakq5bumSkiuUjblpWMjsEBp/hERlc0DjzsF8ypT/wXuSXPvclcjfrEDt3bzAOoTtJNnkEItqQP0hbtiVD+QMyRS7mnFk48zi5SD599AnjKaRr6acOTe2XIoy0vG4+xQ272/nG23qX78ZaxfGME5A1QFYLkW0tCt7JIhuO7Q7kNtigZBIMS6E+5OqLuntOhWlw/T3kOsIs3GqOgX0sZw1KRv6zMOut/Zm25oo26xcZzy1+LqIReCm4s9lmE=
+  file_glob: true
+  file: "../etcd-server*.deb"
+  on:
+    repo: vs-eth/etcd
+    tags: true
